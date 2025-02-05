@@ -19,8 +19,9 @@ context.load_cert_chain('localhost.crt', 'localhost.key')  # Ensure these files 
 def handle_download():
     data = request.json
     url = data.get('url')
+    format_id = data.get('format', 'best')  # Default to 'best' if no format specified
     if url:
-        threading.Thread(target=download_video, args=(url,)).start()
+        threading.Thread(target=download_video, args=(url, format_id)).start()
         return jsonify({"status": "success"})
     return jsonify({"status": "error"})
 
@@ -58,31 +59,39 @@ def run_flask():
         use_reloader=False
     )
 
+# main.py
+@app.route('/get_formats', methods=['POST'])
+def get_formats():
+    data = request.json
+    url = data.get('url')
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
+
+    try:
+        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+            formats = []
+            for f in info.get('formats', []):
+                if f.get('video_ext') != 'none':
+                    formats.append({
+                        'format_id': f['format_id'],
+                        'resolution': f.get('resolution', 'Unknown'),
+                        'ext': f['ext']
+                    })
+            return jsonify({"formats": formats})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 # --- Download Logic (Unchanged) ---
-def download_video(url):
+def download_video(url, format_id='best'):
     try:
         ydl_opts = {
             'outtmpl': os.path.join('downloads', '%(title)s.%(ext)s'),
-            'format': 'best',
-            'live_from_start': True,
+            'format': format_id,
             'progress_hooks': [progress_hook],
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if 'formats' in info and len(info['formats']) > 1:
-                root = Tk()
-                root.title("Select Quality")
-                selected_format = StringVar(root)
-                format_list = [
-                    f"{f['format_id']}: {f.get('resolution', 'Unknown')} ({f['ext']})"
-                    for f in info['formats']
-                    if f.get('video_ext') != 'none'
-                ]
-                ttk.Combobox(root, textvariable=selected_format, values=format_list).pack()
-                ttk.Button(root, text="Download", command=lambda: start_selected_download(ydl, url, selected_format, root)).pack()
-                root.mainloop()
-            else:
-                ydl.download([url])
+            ydl.download([url])
     except Exception as e:
         print(f"Error: {e}")
 
