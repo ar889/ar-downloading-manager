@@ -1,7 +1,6 @@
-// content_script.js (FIXED VERSION)
 function showQualityOptions(formats, downloadButton, videoUrl) {
   // Remove existing quality selector if present
-  const existingSelector = downloadButton.parentNode.querySelector('.quality-selector');
+  const existingSelector = document.querySelector('.quality-selector');
   if (existingSelector) existingSelector.remove();
 
   // Create quality selector container
@@ -14,11 +13,15 @@ function showQualityOptions(formats, downloadButton, videoUrl) {
   selector.style.borderRadius = '4px';
   selector.style.padding = '8px';
   selector.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+  
+  // Make it scrollable if too many options
+  selector.style.maxHeight = '200px'; // Set max height for scrollability
+  selector.style.overflowY = 'auto'; // Enable vertical scrolling
 
   // Add quality options
   formats.forEach(format => {
     const btn = document.createElement('button');
-    btn.textContent = `${format.resolution || 'Unknown'} (${format.ext})`;
+    btn.textContent = `${format.resolution || 'Unknown'} (${format.ext}) ${format.has_audio ? '🔊' : '🔇'}`;
     btn.style.display = 'block';
     btn.style.width = '100%';
     btn.style.padding = '6px 12px';
@@ -27,7 +30,7 @@ function showQualityOptions(formats, downloadButton, videoUrl) {
     btn.style.cursor = 'pointer';
     btn.style.border = 'none';
     btn.style.background = 'none';
-    
+
     btn.addEventListener('click', () => {
       fetch('https://localhost:5000/add_download', {
         method: 'POST',
@@ -35,8 +38,9 @@ function showQualityOptions(formats, downloadButton, videoUrl) {
         body: JSON.stringify({ url: videoUrl, format: format.format_id })
       });
       selector.remove();
+      document.removeEventListener('click', outsideClickListener);
     });
-    
+
     selector.appendChild(btn);
   });
 
@@ -46,12 +50,26 @@ function showQualityOptions(formats, downloadButton, videoUrl) {
   selector.style.left = `${btnRect.left + window.scrollX}px`;
 
   document.body.appendChild(selector);
+
+  // Click outside to close function
+  function outsideClickListener(event) {
+    if (!selector.contains(event.target) && event.target !== downloadButton) {
+      selector.remove();
+      document.removeEventListener('click', outsideClickListener);
+    }
+  }
+
+  // Add event listener to detect clicks outside of the quality selector
+  setTimeout(() => {
+    document.addEventListener('click', outsideClickListener);
+  }, 0);
 }
+
 
 async function handleDownloadButtonClick(video, downloadButton) {
   try {
     let videoUrl = video.src || video.querySelector('source')?.src;
-    
+
     // Handle blob URLs and missing sources
     if (!videoUrl || videoUrl.startsWith('blob:')) {
       videoUrl = window.location.href;
@@ -64,9 +82,9 @@ async function handleDownloadButtonClick(video, downloadButton) {
     });
 
     if (!response.ok) throw new Error('Server error');
-    
+
     const data = await response.json();
-    
+console.log(data)
     if (data.formats?.length > 1) {
       showQualityOptions(data.formats, downloadButton, videoUrl);
     } else {
