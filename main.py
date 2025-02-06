@@ -6,6 +6,8 @@ import ssl
 from tkinter import Tk, StringVar, ttk, messagebox, Label, Button, Entry  # Fixed imports
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import subprocess
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -81,17 +83,77 @@ def get_formats():
         return jsonify({"error": str(e)}), 500
     
 # --- Download Logic (Unchanged) ---
+
+def sanitize_filename(filename):
+    """Ensure filename is safe for filesystem."""
+    return re.sub(r'[\/:*?"<>|]', '_', filename)
+
 def download_video(url, format_id='best'):
     try:
-        ydl_opts = {
-            'outtmpl': os.path.join('downloads', '%(title)s.%(ext)s'),
-            'format': format_id,
+        # Get video info
+        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        original_title = sanitize_filename(info['title'])  # Get clean title
+        video_format = None
+        audio_format = None
+
+        for f in info.get('formats', []):
+            if f['format_id'] == format_id:
+                video_format = f
+            if f.get('acodec') != 'none':  # Find best available audio format
+                audio_format = f
+
+        if not video_format:
+            print("Error: Video format not found.")
+            return
+
+        # Define file paths using original title
+        video_output = os.path.join("downloads", f"{original_title}_video.mp4")
+        final_output = os.path.join("downloads", f"{original_title}.mp4")
+
+        # Download video-only format
+        ydl_opts_video = {
+            'format': video_format['format_id'],
+            'outtmpl': video_output,
             'progress_hooks': [progress_hook],
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts_video) as ydl:
             ydl.download([url])
+
+        if video_format.get('acodec') == 'none' and audio_format:
+            # Download audio format
+            audio_output = os.path.join("downloads", f"{original_title}_audio.m4a")
+            ydl_opts_audio = {
+                'format': audio_format['format_id'],
+                'outtmpl': audio_output,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts_audio) as ydl:
+                ydl.download([url])
+
+            # Merge video and audio using FFmpeg
+            merge_command = [
+                "ffmpeg", "-y",
+                "-i", video_output,
+                "-i", audio_output,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-strict", "experimental",
+                final_output
+            ]
+            subprocess.run(merge_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            # Remove temp files
+            os.remove(video_output)
+            os.remove(audio_output)
+            print(f"Merged video saved as: {final_output}")
+        else:
+            print(f"Downloaded video saved as: {video_output}")
+
     except Exception as e:
         print(f"Error: {e}")
+
+
 
 def start_selected_download(ydl, url, selected_format, root):
     ydl_opts = {'format': selected_format.get().split(':')[0]}
