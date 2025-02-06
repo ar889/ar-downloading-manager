@@ -64,9 +64,6 @@ def run_flask():
 def get_formats():
     data = request.json
     url = data.get('url')
-    if not url:
-        return jsonify({"error": "URL is required"}), 400
-
     try:
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -75,8 +72,9 @@ def get_formats():
                 if f.get('video_ext') != 'none':
                     formats.append({
                         'format_id': f['format_id'],
-                        'resolution': f.get('resolution', 'Unknown'),
-                        'ext': f['ext']
+                        'resolution': f.get('resolution') or f.get('format_note'),
+                        'ext': f['ext'],
+                        'has_audio': f.get('acodec') not in ['none', None]
                     })
             return jsonify({"formats": formats})
     except Exception as e:
