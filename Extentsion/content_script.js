@@ -13,7 +13,7 @@ function showQualityOptions(formats, downloadButton, videoUrl) {
   selector.style.borderRadius = '4px';
   selector.style.padding = '8px';
   selector.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-  
+
   // Make it scrollable if too many options
   selector.style.maxHeight = '200px'; // Set max height for scrollability
   selector.style.overflowY = 'auto'; // Enable vertical scrolling
@@ -65,12 +65,17 @@ function showQualityOptions(formats, downloadButton, videoUrl) {
   }, 0);
 }
 
-
 async function handleDownloadButtonClick(video, downloadButton) {
   try {
-    let videoUrl = video.src || video.querySelector('source')?.src;
+    // Store original button text
+    const originalText = downloadButton.innerHTML;
+    
+    // Disable button and change text
+    downloadButton.innerHTML = '⏳ Loading...';
+    downloadButton.disabled = true;
+    downloadButton.style.opacity = '0.6'; // Reduce opacity to indicate it's disabled
 
-    // Handle blob URLs and missing sources
+    let videoUrl = video.src || video.querySelector('source')?.src;
     if (!videoUrl || videoUrl.startsWith('blob:')) {
       videoUrl = window.location.href;
     }
@@ -84,11 +89,11 @@ async function handleDownloadButtonClick(video, downloadButton) {
     if (!response.ok) throw new Error('Server error');
 
     const data = await response.json();
-console.log(data)
+    
     if (data.formats?.length > 1) {
       showQualityOptions(data.formats, downloadButton, videoUrl);
     } else {
-      fetch('https://localhost:5000/add_download', {
+      await fetch('https://localhost:5000/add_download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: videoUrl })
@@ -96,8 +101,19 @@ console.log(data)
     }
   } catch (err) {
     console.error('Download error:', err);
+    downloadButton.innerHTML = '❌ Error';
+    
+    setTimeout(() => {
+      downloadButton.innerHTML = '⬇️ Download';
+    }, 2000);
+  } finally {
+    // Ensure the button is always re-enabled
+    downloadButton.innerHTML = '⬇️ Download';
+    downloadButton.disabled = false;
+    downloadButton.style.opacity = '1';
   }
 }
+
 
 function injectDownloadButton(video) {
   if (video.dataset.downloadButtonAdded) return;
