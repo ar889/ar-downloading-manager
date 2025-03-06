@@ -51,15 +51,15 @@ class App:
         if url:
             threading.Thread(target=download_video, args=(url,)).start()
 
-# --- Flask Server Setup ---
+# --- Flask Server Setup --- (HTTP without SSL)
 def run_flask():
     app.run(
         host='0.0.0.0',
         port=5000,
-        ssl_context=context,
         threaded=True,
         use_reloader=False
     )
+
 
 # main.py
 @app.route('/get_formats', methods=['POST'])
