@@ -32,7 +32,7 @@ function showQualityOptions(formats, downloadButton, videoUrl) {
     btn.style.background = 'none';
 
     btn.addEventListener('click', () => {
-      fetch('https://localhost:5000/add_download', {
+      fetch('http://localhost:5000/add_download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: videoUrl, format: format.format_id })
@@ -80,7 +80,7 @@ async function handleDownloadButtonClick(video, downloadButton) {
       videoUrl = window.location.href;
     }
 
-    const response = await fetch('https://localhost:5000/get_formats', {
+    const response = await fetch('http://localhost:5000/get_formats', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: videoUrl })
@@ -93,7 +93,7 @@ async function handleDownloadButtonClick(video, downloadButton) {
     if (data.formats?.length > 1) {
       showQualityOptions(data.formats, downloadButton, videoUrl);
     } else {
-      await fetch('https://localhost:5000/add_download', {
+      await fetch('http://localhost:5000/add_download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: videoUrl })
